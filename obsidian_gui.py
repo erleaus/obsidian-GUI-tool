@@ -45,6 +45,8 @@ class ObsidianCheckerGUI:
         # Set up keyboard shortcuts
         self.root.bind('<Command-q>', lambda e: self.exit_application())  # macOS
         self.root.bind('<Control-q>', lambda e: self.exit_application())  # Windows/Linux
+        self.root.bind('<Command-s>', lambda e: self.export_results_dialog())  # macOS export
+        self.root.bind('<Control-s>', lambda e: self.export_results_dialog())  # Windows/Linux export
         self.root.bind('<Escape>', lambda e: self.clear_search())  # Clear search with Escape
             
     def setup_variables(self):
@@ -145,8 +147,13 @@ class ObsidianCheckerGUI:
         ttk.Button(button_frame, text="❓ Help", 
                   command=self.show_help).grid(row=0, column=3, padx=(0, 10))
         
+        self.export_button = ttk.Button(button_frame, text="📄 Export", 
+                                       command=self.export_results_dialog,
+                                       state=tk.DISABLED)
+        self.export_button.grid(row=0, column=4, padx=(0, 10))
+        
         ttk.Button(button_frame, text="💪 Exit", 
-                  command=self.exit_application).grid(row=0, column=4)
+                  command=self.exit_application).grid(row=0, column=5)
         
         # Results section
         results_frame = ttk.LabelFrame(main_frame, text="📊 Results", padding="10")
@@ -394,6 +401,7 @@ class ObsidianCheckerGUI:
             self.results_text.insert(tk.END, message + "\n")
             self.results_text.see(tk.END)
             self.results_text.config(state=tk.DISABLED)
+            self.update_export_button_state()
             
         self.root.after(0, update_text)
         
@@ -402,6 +410,15 @@ class ObsidianCheckerGUI:
         self.results_text.config(state=tk.NORMAL)
         self.results_text.delete(1.0, tk.END)
         self.results_text.config(state=tk.DISABLED)
+        self.update_export_button_state()
+        
+    def update_export_button_state(self):
+        """Enable/disable export button based on whether there are results"""
+        current_results = self.results_text.get(1.0, tk.END).strip()
+        if current_results:
+            self.export_button.config(state=tk.NORMAL)
+        else:
+            self.export_button.config(state=tk.DISABLED)
         
     def show_settings(self):
         """Show settings dialog"""
@@ -436,9 +453,16 @@ If AI is enabled, you get additional features:
 • Similar file detection
 • Content analysis
 
+📄 Export Results:
+• Click the 'Export' button to save current results
+• Choose from Markdown (.md) or Text (.txt) formats
+• Automatic filename generation with timestamp
+• Formatted output with analysis metadata
+
 ⌨️ Keyboard Shortcuts:
 • Enter: Perform search (when in search field)
 • Escape: Clear search field
+• Cmd+S (Mac) / Ctrl+S (PC): Export results
 • Cmd+Q (Mac) / Ctrl+Q (PC): Exit application
 
 Supported file types:
@@ -567,6 +591,89 @@ For more information, see the README.md file.
         self.search_term.set("")
         self.search_entry.focus()
         
+    def export_results_dialog(self):
+        """Show export dialog and save results"""
+        # Check if there are results to export
+        current_results = self.results_text.get(1.0, tk.END).strip()
+        if not current_results:
+            messagebox.showwarning("No Results", "No results to export. Please run an analysis or search first.")
+            return
+            
+        # Get default filename based on vault name
+        vault_name = "results"
+        if self.vault_path.get():
+            vault_name = Path(self.vault_path.get()).name
+            
+        default_filename = f"obsidian_analysis_{vault_name}_{self.get_timestamp()}.md"
+        
+        # Show save dialog
+        file_path = filedialog.asksaveasfilename(
+            title="Export Results",
+            defaultextension=".md",
+            filetypes=[
+                ("Markdown files", "*.md"),
+                ("Text files", "*.txt"),
+                ("All files", "*.*")
+            ],
+            initialname=default_filename
+        )
+        
+        if file_path:
+            try:
+                # Create formatted export content
+                export_content = self.format_export_content(current_results)
+                
+                # Write to file
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(export_content)
+                    
+                # Show success message
+                messagebox.showinfo(
+                    "Export Successful", 
+                    f"Results exported successfully to:\n{file_path}"
+                )
+                
+                self.log_message(f"\n📄 Results exported to: {file_path}")
+                
+            except Exception as e:
+                messagebox.showerror("Export Error", f"Failed to export results:\n{str(e)}")
+                self.log_message(f"\n❌ Export failed: {str(e)}")
+                
+    def format_export_content(self, results_text):
+        """Format the results for export"""
+        import datetime
+        
+        # Header information
+        header = f"""
+# Obsidian Checker Analysis Results
+
+**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**Vault:** {self.vault_path.get() or 'Not specified'}
+**Analysis Type:** {'AI-Enhanced' if (self.ai_available.get() and self.use_ai_search.get()) else 'Standard'}
+
+---
+
+"""
+        
+        # Format the results text
+        formatted_results = results_text.replace('\n', '\n')
+        
+        # Footer
+        footer = f"""
+
+---
+
+*Generated by Obsidian Checker GUI*
+*For more information, visit: https://github.com/your-repo*
+"""
+        
+        return header + formatted_results + footer
+        
+    def get_timestamp(self):
+        """Get current timestamp for filenames"""
+        import datetime
+        return datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    
     def exit_application(self):
         """Exit the application with confirmation"""
         if self.running:
