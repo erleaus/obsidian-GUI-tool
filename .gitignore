@@ -49,3 +49,8 @@ export_*.md
 *.app/
 app_icon.png
 app_icon.icns
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec.bak
