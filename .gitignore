@@ -54,3 +54,20 @@ app_icon.icns
 build/
 dist/
 *.spec.bak
+# Build artifacts
+*.dmg
+*.pkg
+*.app
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# Build environments  
+dmg_build_env/
+dmg_contents/

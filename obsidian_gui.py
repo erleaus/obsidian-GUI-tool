@@ -534,7 +534,65 @@ class ObsidianCheckerGUI:
         
     def show_settings(self):
         """Show settings dialog"""
-        messagebox.showinfo("Settings", "Settings dialog coming soon!\n\nFor now, you can modify options in the Analysis Options section.")
+        settings_dialog = tk.Toplevel(self.root)
+        settings_dialog.title("Settings - Obsidian Checker")
+        settings_dialog.geometry("400x300")
+        settings_dialog.transient(self.root)
+        settings_dialog.grab_set()
+        
+        # Main frame
+        main_frame = ttk.Frame(settings_dialog, padding="15")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Settings title
+        title_label = ttk.Label(main_frame, text="⚙️ Settings", font=('Helvetica', 14, 'bold'))
+        title_label.pack(pady=(0, 15))
+        
+        # Analysis Settings
+        analysis_frame = ttk.LabelFrame(main_frame, text="Analysis Settings", padding="10")
+        analysis_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # Auto-export setting
+        auto_export_var = tk.BooleanVar(value=self.export_results.get())
+        ttk.Checkbutton(analysis_frame, text="Auto-export results after analysis", 
+                       variable=auto_export_var).pack(anchor=tk.W, pady=2)
+        
+        # AI Settings
+        ai_frame = ttk.LabelFrame(main_frame, text="AI Settings", padding="10")
+        ai_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # AI auto-enable setting
+        ai_auto_var = tk.BooleanVar(value=self.use_ai_search.get())
+        ttk.Checkbutton(ai_frame, text="Enable AI features by default (when available)", 
+                       variable=ai_auto_var).pack(anchor=tk.W, pady=2)
+        
+        # Display Settings
+        display_frame = ttk.LabelFrame(main_frame, text="Display Settings", padding="10")
+        display_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        ttk.Label(display_frame, text="These settings take effect next time you run the app.").pack(anchor=tk.W, pady=2)
+        
+        # Button frame
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X)
+        
+        def save_settings():
+            """Save settings and close dialog"""
+            self.export_results.set(auto_export_var.get())
+            self.use_ai_search.set(ai_auto_var.get())
+            messagebox.showinfo("Settings", "Settings saved successfully!")
+            settings_dialog.destroy()
+        
+        def reset_settings():
+            """Reset settings to defaults"""
+            auto_export_var.set(False)
+            ai_auto_var.set(False)
+            messagebox.showinfo("Settings", "Settings reset to defaults")
+        
+        # Buttons
+        ttk.Button(button_frame, text="💾 Save", command=save_settings).pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(button_frame, text="🔄 Reset", command=reset_settings).pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(button_frame, text="❌ Cancel", command=settings_dialog.destroy).pack(side=tk.RIGHT)
         
     def show_help(self):
         """Show help dialog"""

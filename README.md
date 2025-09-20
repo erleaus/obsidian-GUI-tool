@@ -76,14 +76,21 @@ python3 obsidian_gui.py
 python3 run_gui.py
 ```
 
-### Option 3: Build Distributable App (macOS)
-```bash
-# Build complete installer package
-./build_installer.sh
+### Option 3: Download Pre-built DMG (macOS - Recommended)
+- **Download**: Latest `Obsidian_Checker_v1.0.0.dmg` from [Releases](../../releases)
+- **Install**: Drag to Applications folder
+- **Size**: ~160MB (includes all dependencies)
+- **Requirements**: macOS 10.13+ (High Sierra or later)
 
-# The result will be:
-# - dist/Obsidian Checker.app (macOS app bundle)
-# - dist/ObsidianChecker-v1.0.0.dmg (installer package)
+### Option 4: Build Your Own DMG
+```bash
+# Simple build (recommended)
+./build_dmg_simple.sh
+
+# Advanced build with customization  
+python create_dmg.py
+
+# Results in: Obsidian_Checker_v1.0.0.dmg
 ```
 
 ## 📦 Installation
@@ -316,26 +323,31 @@ pip install pyinstaller sentence-transformers scikit-learn python-docx
 python3 obsidian_gui.py
 ```
 
-### Production Build (macOS)
+### Production Build (macOS) - NEW DMG SYSTEM
 
-#### Quick Build
+#### Simple DMG Build (Recommended)
 ```bash
-# One-command build (creates both .app and .dmg)
-./build_installer.sh
+# One-command build - creates complete DMG package
+./build_dmg_simple.sh
+
+# Results in: Obsidian_Checker_v1.0.0.dmg (~160MB)
 ```
 
-#### Manual Build Process
+#### Advanced DMG Build
 ```bash
-# 1. Build app bundle
-pyinstaller obsidian_checker.spec --clean
+# Python-based build with customization options
+python create_dmg.py
 
-# 2. Create DMG installer
-./create_dmg.sh
-
-# Results:
-# - dist/Obsidian Checker.app (128MB app bundle)
-# - dist/ObsidianChecker-v1.0.0.dmg (98MB compressed installer)
+# Results in same DMG with custom options
 ```
+
+#### What Gets Built
+- **App Bundle**: `Obsidian Checker.app` with all dependencies
+- **DMG Installer**: Professional installer with drag-to-Applications interface
+- **Self-contained**: No Python installation required on target Mac
+- **Compatible**: Works on macOS 10.13+ (High Sierra or later)
+
+See [DMG_BUILD_GUIDE.md](DMG_BUILD_GUIDE.md) for detailed build instructions.
 
 ## 🔧 Development
 

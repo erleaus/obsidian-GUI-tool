@@ -25,6 +25,7 @@ except ImportError:
     AI_AVAILABLE = False
 
 
+
 class ObsidianBacklinkChecker:
     def __init__(self, root):
         self.root = root
@@ -44,6 +45,7 @@ class ObsidianBacklinkChecker:
         self.ai_embeddings = None
         self.ai_documents = []
         self.ai_search_enabled = AI_AVAILABLE
+        
         
         self.setup_ui()
         self.detect_obsidian_vaults()
@@ -127,7 +129,7 @@ class ObsidianBacklinkChecker:
             similar_btn.pack(side=tk.LEFT, padx=5)
             
             # Update grid row numbers for elements below
-            main_frame.rowconfigure(6, weight=1)
+            current_row = 4
         else:
             # Show message about AI availability
             ai_info_frame = ttk.LabelFrame(main_frame, text="ℹ️ AI Search Info", padding="5")
@@ -136,11 +138,14 @@ class ObsidianBacklinkChecker:
             info_text = "AI Concept Search is available! Run: ./run_with_ai.sh obsidian_backlink_checker.py"
             ttk.Label(ai_info_frame, text=info_text, foreground="blue").pack()
             
-            main_frame.rowconfigure(6, weight=1)
+            current_row = 4
+        
+        
+        main_frame.rowconfigure(current_row + 2, weight=1)
         
         # Backlink check buttons frame
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.grid(row=4, column=0, columnspan=3, pady=20)
+        btn_frame.grid(row=current_row, column=0, columnspan=3, pady=20)
         
         # Main action button
         self.main_btn = ttk.Button(btn_frame, text="Open Obsidian & Check Backlinks", 
@@ -163,7 +168,7 @@ class ObsidianBacklinkChecker:
         
         # Status bar
         status_frame = ttk.Frame(main_frame)
-        status_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+        status_frame.grid(row=current_row + 1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
         status_frame.columnconfigure(0, weight=1)
         
         ttk.Label(status_frame, text="Status:").grid(row=0, column=0, sticky=tk.W)
@@ -175,7 +180,7 @@ class ObsidianBacklinkChecker:
         
         # Results area
         results_frame = ttk.LabelFrame(main_frame, text="Results", padding="5")
-        results_frame.grid(row=6, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
+        results_frame.grid(row=current_row + 2, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
         results_frame.columnconfigure(0, weight=1)
         results_frame.rowconfigure(0, weight=1)
         
@@ -942,6 +947,7 @@ class ObsidianBacklinkChecker:
         finally:
             self.progress.stop()
             self.status_var.set("Similar files search completed")
+    
     
     def exit_application(self):
         """Exit the application"""
