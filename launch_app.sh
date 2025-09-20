@@ -1,33 +1,32 @@
 #!/bin/bash
-# Simple launcher for Obsidian Checker Desktop App
-# Can be used from command line or added to PATH
+# Obsidian Checker Launcher Script
+# Launch the Obsidian Checker with AI features
 
-echo "🚀 Launching Obsidian Checker Desktop App..."
+echo "🚀 Launching Obsidian Checker..."
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Check if the app exists
-APP_PATH="$SCRIPT_DIR/Obsidian Checker.app"
+# Change to the script directory
+cd "$SCRIPT_DIR"
 
-if [ -d "$APP_PATH" ]; then
-    echo "📱 Opening Obsidian Checker.app..."
-    open "$APP_PATH"
+# Check if AI environment is set up
+if [ -d "obsidian_ai_env" ] && [ -f "run_with_ai.sh" ]; then
+    echo "🤖 Starting Obsidian Checker with AI features..."
+    ./run_with_ai.sh obsidian_backlink_checker.py
 else
-    echo "❌ Desktop app not found. Creating it now..."
-    if [ -x "$SCRIPT_DIR/create_desktop_app.sh" ]; then
-        "$SCRIPT_DIR/create_desktop_app.sh"
-        if [ -d "$APP_PATH" ]; then
-            echo "✅ App created successfully! Opening..."
-            open "$APP_PATH"
+    echo "⚠️  AI environment not found. Running setup..."
+    if [ -f "setup.sh" ]; then
+        ./setup.sh
+        if [ -d "obsidian_ai_env" ]; then
+            echo "✅ Setup complete! Starting with AI features..."
+            ./run_with_ai.sh obsidian_backlink_checker.py
         else
-            echo "❌ Failed to create app. Launching CLI version instead..."
-            cd "$SCRIPT_DIR"
+            echo "❌ Setup failed. Running without AI features..."
             python3 obsidian_backlink_checker.py
         fi
     else
-        echo "❌ Cannot create app. Launching CLI version instead..."
-        cd "$SCRIPT_DIR"
+        echo "❌ Setup script not found. Running without AI features..."
         python3 obsidian_backlink_checker.py
     fi
 fi
