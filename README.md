@@ -6,6 +6,9 @@ Your Obsidian Checker now includes **FREE AI-powered semantic search** capabilit
 
 ### Run with AI Features:
 ```bash
+# 🖥️  Desktop App (macOS)
+./launch_app.sh
+
 # GUI with AI
 ./run_with_ai.sh obsidian_backlink_checker.py
 
@@ -23,6 +26,15 @@ python3 obsidian_backlink_checker.py
 
 # CLI without AI (no AI options)
 python3 obsidian_checker_cli.py --help
+```
+
+### Create Desktop App (macOS):
+```bash
+# Create a native macOS .app bundle
+./create_desktop_app.sh
+
+# Then double-click "Obsidian Checker.app" in Finder
+# Or drag it to Applications folder
 ```
 
 ## 🧠 AI Features
@@ -68,8 +80,24 @@ Build semantic search index (one-time setup per vault):
 - **Cached Results**: Fast subsequent searches (index cached in `.obsidian/`)
 - **Progress Tracking**: Shows indexing progress for large vaults
 
-## 🖥️ GUI Features
+## 🖥️ Desktop App & GUI Features
 
+### 🍎 macOS Desktop App
+Create a native macOS application that appears in your Applications folder:
+- **Smart Launch**: Auto-detects AI availability
+- **User-Friendly Setup**: Guides you through AI installation
+- **Native Integration**: Works like any other Mac app
+- **Custom Icon**: Beautiful magnifying glass with AI sparkles
+
+```bash
+# Create the desktop app
+./create_desktop_app.sh
+
+# Quick launch (creates app if needed)
+./launch_app.sh
+```
+
+### GUI Features
 When running with AI, the GUI includes:
 
 ### 🤖 AI Concept Search Section

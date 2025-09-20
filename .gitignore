@@ -44,3 +44,8 @@ Thumbs.db
 # Export files from testing
 search_results_*.md
 export_*.md
+
+# Generated desktop app (can be recreated)
+*.app/
+app_icon.png
+app_icon.icns
