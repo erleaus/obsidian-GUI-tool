@@ -10,10 +10,18 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 import os
 import sys
 import threading
-import subprocess
 from pathlib import Path
 import json
-from typing import Optional, Dict, Any
+import re
+import time
+from typing import Optional, Dict, Any, List
+
+# Import core analysis functions directly
+try:
+    from obsidian_ai_search import ObsidianAISearch
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
 
 class ObsidianCheckerGUI:
     def __init__(self, root):
@@ -48,6 +56,14 @@ class ObsidianCheckerGUI:
         self.root.bind('<Command-s>', lambda e: self.export_results_dialog())  # macOS export
         self.root.bind('<Control-s>', lambda e: self.export_results_dialog())  # Windows/Linux export
         self.root.bind('<Escape>', lambda e: self.clear_search())  # Clear search with Escape
+        
+        # Initialize AI search if available
+        self.ai_search = None
+        if AI_AVAILABLE:
+            try:
+                self.ai_search = ObsidianAISearch("")
+            except Exception as e:
+                print(f"Warning: Failed to initialize AI search: {e}")
             
     def setup_variables(self):
         """Initialize GUI variables"""
@@ -178,15 +194,23 @@ class ObsidianCheckerGUI:
     def check_ai_availability(self):
         """Check if AI features are available"""
         try:
-            # Check if AI environment exists
-            ai_env_path = Path("obsidian_ai_env")
-            if ai_env_path.exists():
-                self.ai_available.set(True)
-                self.ai_status_label.config(text="✅ AI Ready", foreground="green")
-                self.use_ai_search.set(True)  # Enable by default if available
+            if AI_AVAILABLE and self.ai_search:
+                # Check if AI environment exists or if AI search is functional
+                ai_env_path = Path("obsidian_ai_env")
+                if ai_env_path.exists() or self.ai_search.is_available():
+                    self.ai_available.set(True)
+                    self.ai_status_label.config(text="✅ AI Ready", foreground="green")
+                    self.use_ai_search.set(True)  # Enable by default if available
+                else:
+                    self.ai_available.set(False)
+                    self.ai_status_label.config(text="⚠️ AI Not Set Up", foreground="orange")
+                    self.ai_checkbox.config(state=tk.DISABLED)
             else:
                 self.ai_available.set(False)
-                self.ai_status_label.config(text="⚠️ AI Not Set Up", foreground="orange")
+                if AI_AVAILABLE:
+                    self.ai_status_label.config(text="⚠️ AI Not Set Up", foreground="orange")
+                else:
+                    self.ai_status_label.config(text="❌ AI Not Available", foreground="red")
                 self.ai_checkbox.config(state=tk.DISABLED)
                 
         except Exception as e:
@@ -271,16 +295,6 @@ class ObsidianCheckerGUI:
                 dialog.destroy()
                 
         ttk.Button(dialog, text="Select", command=select_vault).pack(pady=5)
-        
-    def validate_vault(self, path):
-        """Validate if the selected path is an Obsidian vault"""
-        obsidian_config = os.path.join(path, '.obsidian')
-        if os.path.exists(obsidian_config):
-            self.log_message(f"✅ Valid Obsidian vault detected")
-            return True
-        else:
-            self.log_message(f"⚠️ No .obsidian folder found - may not be a valid vault")
-            return False
             
     def run_analysis(self):
         """Run the Obsidian analysis in a separate thread"""
@@ -315,63 +329,73 @@ class ObsidianCheckerGUI:
             self.log_message("🚀 Starting Obsidian vault analysis...")
             self.log_message(f"📁 Vault: {self.vault_path.get()}")
             
-            # Build command arguments
-            cmd_args = []
+            vault_path = self.vault_path.get()
             
-            if self.ai_available.get() and self.use_ai_search.get():
-                # Use AI-enabled script
-                cmd_args = ["./run_with_ai.sh", "obsidian_checker_cli.py"]
-                self.log_message("🤖 Using AI-enhanced analysis")
-            else:
-                # Use regular Python script
-                cmd_args = [sys.executable, "obsidian_checker_cli.py"]
-                self.log_message("🔍 Using standard analysis")
+            # Check if vault path is valid
+            if not vault_path:
+                self.log_message("❌ No vault path specified")
+                return
                 
-            # Add vault path
-            cmd_args.extend(["--vault", self.vault_path.get()])
+            if not os.path.exists(vault_path):
+                self.log_message("❌ Vault path does not exist")
+                return
             
-            # Add other options
-            if not self.check_backlinks.get():
-                cmd_args.append("--no-backlinks")
-                
+            # Run analysis based on selected options
+            analysis_success = True
+            
+            if self.check_backlinks.get():
+                if self.ai_available.get() and self.use_ai_search.get() and self.ai_search:
+                    self.log_message("🤖 Using AI-enhanced analysis")
+                    try:
+                        # Update AI search vault path
+                        self.ai_search.vault_path = vault_path
+                        
+                        # Run AI analysis if available
+                        if not self.ai_search.load_cache():
+                            self.log_message("🤖 Building AI index first...")
+                            self.ai_search.build_index()
+                        
+                        # Run backlink check with AI enhancement
+                        success, message = self.check_backlinks_core(vault_path)
+                        if not success:
+                            analysis_success = False
+                        
+                        self.log_message("\n🤖 AI analysis features available for search.")
+                        
+                    except Exception as e:
+                        self.log_message(f"⚠️ AI analysis failed, falling back to standard: {str(e)}")
+                        success, message = self.check_backlinks_core(vault_path)
+                        if not success:
+                            analysis_success = False
+                else:
+                    self.log_message("🔍 Using standard analysis")
+                    success, message = self.check_backlinks_core(vault_path)
+                    if not success:
+                        analysis_success = False
+            
+            # Handle export if requested
             if self.export_results.get():
-                export_path = f"analysis_results_{Path(self.vault_path.get()).name}.md"
-                cmd_args.extend(["--export", export_path])
-                self.log_message(f"📄 Will export results to: {export_path}")
-                
-            self.log_message(f"Running command: {' '.join(cmd_args)}")
-            self.log_message("-" * 60)
+                export_path = f"analysis_results_{Path(vault_path).name}.md"
+                self.log_message(f"\n📄 Exporting results to: {export_path}")
+                try:
+                    current_results = self.results_text.get(1.0, tk.END).strip()
+                    if current_results:
+                        export_content = self.format_export_content(current_results)
+                        with open(export_path, 'w', encoding='utf-8') as f:
+                            f.write(export_content)
+                        self.log_message(f"✅ Results exported to: {export_path}")
+                    else:
+                        self.log_message("⚠️ No results to export")
+                except Exception as e:
+                    self.log_message(f"❌ Export failed: {str(e)}")
+                    analysis_success = False
             
-            # Run the analysis
-            process = subprocess.Popen(
-                cmd_args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                cwd=os.getcwd()
-            )
-            
-            # Read output line by line
-            while True:
-                if not self.running:
-                    process.terminate()
-                    break
-                    
-                line = process.stdout.readline()
-                if not line:
-                    break
-                    
-                self.log_message(line.rstrip())
-                
-            # Wait for process to complete
-            process.wait()
-            
-            if process.returncode == 0:
+            if analysis_success:
                 self.log_message("-" * 60)
                 self.log_message("✅ Analysis completed successfully!")
             else:
                 self.log_message("-" * 60)
-                self.log_message(f"❌ Analysis failed with exit code: {process.returncode}")
+                self.log_message("❌ Analysis completed with errors")
                 
         except Exception as e:
             self.log_message(f"❌ Error during analysis: {str(e)}")
@@ -519,56 +543,58 @@ For more information, see the README.md file.
     def quick_search_thread(self, search_query):
         """Run the quick search in a separate thread"""
         try:
-            # Build search command
-            cmd_args = []
+            vault_path = self.vault_path.get()
             
-            if self.ai_available.get() and self.use_ai_search.get():
-                # Use AI search if available
-                cmd_args = ["./run_with_ai.sh", "obsidian_checker_cli.py"]
-                cmd_args.extend(["--ai-search", search_query])
+            if not vault_path:
+                self.log_message("❌ No vault path specified")
+                return
+                
+            if not os.path.exists(vault_path):
+                self.log_message("❌ Vault path does not exist")
+                return
+            
+            if self.ai_available.get() and self.use_ai_search.get() and self.ai_search:
                 self.log_message("🤖 Using AI semantic search...")
+                self.log_message("-" * 30)
+                
+                try:
+                    # Update AI search vault path
+                    self.ai_search.vault_path = vault_path
+                    
+                    # Load or build AI index
+                    if not self.ai_search.load_cache():
+                        self.log_message("🤖 Building AI index first...")
+                        self.ai_search.build_index()
+                    
+                    # Perform AI semantic search
+                    results = self.ai_search.semantic_search(search_query)
+                    
+                    self.log_message(f"\n🤖 AI Concept Search Results for: '{search_query}'")
+                    self.log_message("=" * 60)
+                    
+                    if results:
+                        for i, result in enumerate(results, 1):
+                            similarity_pct = result['similarity'] * 100
+                            self.log_message(f"\n{i}. 📄 {result['file']} (similarity: {similarity_pct:.1f}%)")
+                            self.log_message(f"   {result['preview']}")
+                    else:
+                        self.log_message("❌ No conceptually related content found")
+                    
+                    self.log_message("=" * 60)
+                    
+                except Exception as e:
+                    self.log_message(f"⚠️ AI search failed, falling back to text search: {str(e)}")
+                    success, message = self.search_vault_core(vault_path, search_query)
+                    
             else:
-                # Use regular search
-                cmd_args = [sys.executable, "obsidian_checker_cli.py"]
-                cmd_args.extend(["--search", search_query])
+                # Use regular text search
                 self.log_message("🔍 Using text search...")
+                self.log_message("-" * 30)
                 
-            # Add vault path
-            cmd_args.extend(["--vault", self.vault_path.get()])
-            
-            self.log_message(f"Command: {' '.join(cmd_args)}")
+                success, message = self.search_vault_core(vault_path, search_query)
+                
             self.log_message("-" * 30)
-            
-            # Run the search
-            process = subprocess.Popen(
-                cmd_args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                cwd=os.getcwd()
-            )
-            
-            # Read output line by line
-            while True:
-                if not self.running:
-                    process.terminate()
-                    break
-                    
-                line = process.stdout.readline()
-                if not line:
-                    break
-                    
-                self.log_message(line.rstrip())
-                
-            # Wait for process to complete
-            process.wait()
-            
-            if process.returncode == 0:
-                self.log_message("-" * 30)
-                self.log_message("✅ Search completed!")
-            else:
-                self.log_message("-" * 30)
-                self.log_message(f"❌ Search failed with exit code: {process.returncode}")
+            self.log_message("✅ Search completed!")
                 
         except Exception as e:
             self.log_message(f"❌ Error during search: {str(e)}")
@@ -615,7 +641,7 @@ For more information, see the README.md file.
                 ("Text files", "*.txt"),
                 ("All files", "*.*")
             ],
-            initialname=default_filename
+            initialfile=default_filename
         )
         
         if file_path:
@@ -673,6 +699,226 @@ For more information, see the README.md file.
         """Get current timestamp for filenames"""
         import datetime
         return datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # Core analysis functions - moved from CLI module
+    def is_obsidian_vault(self, path):
+        """Check if a directory is an Obsidian vault"""
+        obsidian_config = os.path.join(path, ".obsidian")
+        return os.path.exists(obsidian_config) and os.path.isdir(obsidian_config)
+    
+    def check_backlinks_core(self, vault_path):
+        """Core backlink checking functionality"""
+        if not vault_path or not os.path.exists(vault_path):
+            return False, "Please provide a valid Obsidian vault directory"
+            
+        if not self.is_obsidian_vault(vault_path):
+            return False, "Selected directory is not an Obsidian vault"
+            
+        self.log_message(f"🔍 Scanning vault: {vault_path}")
+        self.log_message("-" * 60)
+        
+        try:
+            # Find all markdown files
+            md_files = list(Path(vault_path).rglob("*.md"))
+            total_files = len(md_files)
+            
+            self.log_message(f"📁 Found {total_files} markdown files")
+            
+            # Get all file names (without extension) for reference
+            all_notes = {f.stem for f in md_files}
+            
+            broken_links = []
+            broken_count = 0
+            total_links = 0
+            
+            for i, md_file in enumerate(md_files):
+                if not self.running:
+                    return False, "Analysis stopped by user"
+                    
+                if i % 10 == 0:  # Progress indicator
+                    self.log_message(f"📊 Progress: {i+1}/{total_files} files processed...")
+                
+                try:
+                    with open(md_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # Find all wiki-style links [[link]]
+                    wiki_links = re.findall(r'\[\[([^\]]+)\]\]', content)
+                    
+                    # Find all markdown links [text](link)
+                    md_links = re.findall(r'\[([^\]]*)\]\(([^)]+)\)', content)
+                    
+                    for link in wiki_links:
+                        total_links += 1
+                        # Handle links with aliases [[link|alias]]
+                        actual_link = link.split('|')[0].strip()
+                        
+                        # Check if the target note exists
+                        if actual_link not in all_notes:
+                            # Check if it's a file with extension
+                            target_path = Path(vault_path) / f"{actual_link}.md"
+                            if not target_path.exists():
+                                broken_links.append({
+                                    'file': str(md_file.relative_to(vault_path)),
+                                    'link': link,
+                                    'type': 'wiki'
+                                })
+                                broken_count += 1
+                    
+                    for text, link in md_links:
+                        total_links += 1
+                        # Only check local markdown links
+                        if link.endswith('.md') and not link.startswith(('http', 'https', 'ftp')):
+                            target_path = md_file.parent / link
+                            if not target_path.exists():
+                                broken_links.append({
+                                    'file': str(md_file.relative_to(vault_path)),
+                                    'link': link,
+                                    'type': 'markdown'
+                                })
+                                broken_count += 1
+                                
+                except Exception as e:
+                    self.log_message(f"❌ Error reading {md_file.name}: {str(e)}")
+                    
+            # Display results
+            self.log_message("\n" + "=" * 60)
+            self.log_message("📊 BACKLINK CHECK SUMMARY")
+            self.log_message("=" * 60)
+            self.log_message(f"Files scanned: {total_files}")
+            self.log_message(f"Total links found: {total_links}")
+            self.log_message(f"Broken links: {broken_count}")
+            
+            if broken_count == 0:
+                self.log_message("\n🎉 All backlinks are working correctly!")
+            else:
+                self.log_message(f"\n⚠️  Found {broken_count} broken links:")
+                self.log_message("-" * 40)
+                
+                for broken_link in broken_links:
+                    link_type = "[[...]]" if broken_link['type'] == 'wiki' else "[...](…)"
+                    self.log_message(f"📄 {broken_link['file']}")
+                    self.log_message(f"   🔗 {link_type}: {broken_link['link']}")
+                    self.log_message("")
+                    
+            self.log_message("=" * 60)
+            return broken_count == 0, f"Analysis completed. {broken_count} broken links found."
+            
+        except Exception as e:
+            error_msg = f"Error during backlink check: {str(e)}"
+            self.log_message(f"❌ {error_msg}")
+            return False, error_msg
+    
+    def search_vault_core(self, vault_path, search_term, case_sensitive=False, whole_word=False, use_regex=False):
+        """Core search functionality"""
+        if not vault_path or not os.path.exists(vault_path):
+            return False, "Please provide a valid Obsidian vault directory"
+            
+        if not self.is_obsidian_vault(vault_path):
+            return False, "Selected directory is not an Obsidian vault"
+        
+        if not search_term.strip():
+            return False, "Please provide a search term"
+            
+        self.log_message(f"🔍 Searching for '{search_term}' in vault: {vault_path}")
+        self.log_message("-" * 60)
+        
+        try:
+            # Find all markdown files
+            md_files = list(Path(vault_path).rglob("*.md"))
+            total_files = len(md_files)
+            
+            self.log_message(f"📁 Scanning {total_files} markdown files...")
+            
+            # Prepare search pattern
+            if use_regex:
+                try:
+                    flags = 0 if case_sensitive else re.IGNORECASE
+                    pattern = re.compile(search_term, flags)
+                except re.error as e:
+                    error_msg = f"Invalid regex pattern: {e}"
+                    self.log_message(f"❌ {error_msg}")
+                    return False, error_msg
+            else:
+                # Escape special regex characters for literal search
+                escaped_term = re.escape(search_term)
+                if whole_word:
+                    escaped_term = r'\b' + escaped_term + r'\b'
+                flags = 0 if case_sensitive else re.IGNORECASE
+                pattern = re.compile(escaped_term, flags)
+            
+            search_results = []
+            total_matches = 0
+            files_with_matches = 0
+            
+            for i, md_file in enumerate(md_files):
+                if not self.running:
+                    return False, "Search stopped by user"
+                    
+                if i % 10 == 0:  # Progress indicator
+                    self.log_message(f"📊 Progress: {i+1}/{total_files} files processed...")
+                
+                try:
+                    with open(md_file, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                    
+                    file_matches = []
+                    for line_num, line in enumerate(lines, 1):
+                        matches = list(pattern.finditer(line))
+                        if matches:
+                            file_matches.append({
+                                'line_num': line_num,
+                                'line_content': line.rstrip(),
+                                'matches': len(matches)
+                            })
+                    
+                    if file_matches:
+                        files_with_matches += 1
+                        file_total_matches = sum(m['matches'] for m in file_matches)
+                        total_matches += file_total_matches
+                        
+                        search_results.append({
+                            'file_path': md_file,
+                            'relative_path': str(md_file.relative_to(vault_path)),
+                            'matches': file_matches,
+                            'total_matches': file_total_matches
+                        })
+                        
+                except Exception as e:
+                    self.log_message(f"❌ Error reading {md_file.name}: {str(e)}")
+            
+            # Display results
+            self.log_message("\n" + "=" * 60)
+            self.log_message(f"📊 SEARCH RESULTS FOR: '{search_term}'")
+            self.log_message("=" * 60)
+            self.log_message(f"Files scanned: {total_files}")
+            self.log_message(f"Files with matches: {files_with_matches}")
+            self.log_message(f"Total matches: {total_matches}")
+            
+            if total_matches == 0:
+                self.log_message(f"\n❌ No matches found for '{search_term}'")
+            else:
+                self.log_message(f"\n✅ Found {total_matches} matches in {files_with_matches} files:")
+                self.log_message("-" * 60)
+                
+                for result in search_results:
+                    self.log_message(f"\n📄 {result['relative_path']} ({result['total_matches']} matches)")
+                    
+                    # Show up to 5 matches per file in GUI
+                    for i, match in enumerate(result['matches'][:5]):
+                        line_preview = match['line_content'][:100] + "..." if len(match['line_content']) > 100 else match['line_content']
+                        self.log_message(f"   Line {match['line_num']}: {line_preview}")
+                    
+                    if len(result['matches']) > 5:
+                        self.log_message(f"   ... and {len(result['matches']) - 5} more matches")
+            
+            self.log_message("=" * 60)
+            return len(search_results) > 0, f"Search completed. {total_matches} matches found."
+            
+        except Exception as e:
+            error_msg = f"Error during search: {str(e)}"
+            self.log_message(f"❌ {error_msg}")
+            return False, error_msg
     
     def exit_application(self):
         """Exit the application with confirmation"""
