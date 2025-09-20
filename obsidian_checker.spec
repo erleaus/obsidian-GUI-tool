@@ -20,6 +20,10 @@ a = Analysis(
         'sentence_transformers',
         'sklearn',
         'numpy',
+        # Word document export
+        'docx',
+        'docx.shared',
+        'lxml',
     ],
     hookspath=[],
     hooksconfig={},

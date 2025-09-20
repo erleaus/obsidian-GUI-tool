@@ -10,6 +10,7 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 import os
 import sys
 import threading
+import subprocess
 from pathlib import Path
 import json
 import re
@@ -22,6 +23,14 @@ try:
     AI_AVAILABLE = True
 except ImportError:
     AI_AVAILABLE = False
+
+# Import for Word document export
+try:
+    from docx import Document
+    from docx.shared import Inches
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
 
 class ObsidianCheckerGUI:
     def __init__(self, root):
@@ -107,6 +116,10 @@ class ObsidianCheckerGUI:
         ttk.Button(vault_frame, text="Auto-find", 
                   command=self.auto_find_vault).grid(row=0, column=3, padx=(5, 0))
         
+        # Add Open Obsidian button
+        ttk.Button(vault_frame, text="📱 Open Obsidian", 
+                  command=self.open_obsidian).grid(row=0, column=4, padx=(5, 0))
+        
         # Quick Search section
         search_frame = ttk.LabelFrame(main_frame, text="🔍 Quick Search", padding="10")
         search_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
@@ -163,10 +176,18 @@ class ObsidianCheckerGUI:
         ttk.Button(button_frame, text="❓ Help", 
                   command=self.show_help).grid(row=0, column=3, padx=(0, 10))
         
-        self.export_button = ttk.Button(button_frame, text="📄 Export", 
-                                       command=self.export_results_dialog,
-                                       state=tk.DISABLED)
+        # Create export menu button
+        self.export_var = tk.StringVar(value="📄 Export")
+        self.export_button = ttk.Menubutton(button_frame, textvariable=self.export_var,
+                                          state=tk.DISABLED)
         self.export_button.grid(row=0, column=4, padx=(0, 10))
+        
+        # Create export menu
+        export_menu = tk.Menu(self.export_button, tearoff=0)
+        export_menu.add_command(label="📄 Export as Markdown", command=lambda: self.export_results_dialog('markdown'))
+        export_menu.add_command(label="📘 Export as Word Document", command=lambda: self.export_results_dialog('word'))
+        export_menu.add_command(label="📊 Export as HTML (Google Docs Ready)", command=lambda: self.export_results_dialog('html'))
+        self.export_button['menu'] = export_menu
         
         ttk.Button(button_frame, text="💪 Exit", 
                   command=self.exit_application).grid(row=0, column=5)
@@ -226,8 +247,11 @@ class ObsidianCheckerGUI:
         )
         if directory:
             self.vault_path.set(directory)
-            self.validate_vault(directory)
-            
+            if self.is_obsidian_vault(directory):
+                self.log_message(f"✅ Valid Obsidian vault selected: {directory}")
+            else:
+                self.log_message(f"⚠️ Selected directory may not be an Obsidian vault (no .obsidian folder found): {directory}")
+            self.log_message(f"Selected vault: {directory}")
     def auto_find_vault(self):
         """Automatically find Obsidian vaults"""
         self.log_message("🔍 Searching for Obsidian vaults...")
@@ -295,6 +319,70 @@ class ObsidianCheckerGUI:
                 dialog.destroy()
                 
         ttk.Button(dialog, text="Select", command=select_vault).pack(pady=5)
+    
+    def open_obsidian(self):
+        """Open Obsidian application with the selected vault"""
+        vault_path = self.vault_path.get()
+        
+        if not vault_path:
+            messagebox.showwarning("No Vault Selected", 
+                                 "Please select an Obsidian vault first before opening Obsidian.")
+            return
+            
+        if not os.path.exists(vault_path):
+            messagebox.showerror("Vault Not Found", 
+                               f"The selected vault path does not exist:\n{vault_path}")
+            return
+            
+        if not self.is_obsidian_vault(vault_path):
+            result = messagebox.askyesno("Not an Obsidian Vault", 
+                                       f"The selected path doesn't appear to be an Obsidian vault (no .obsidian folder found).\n\nDo you still want to open Obsidian with this path?\n\nPath: {vault_path}")
+            if not result:
+                return
+        
+        try:
+            self.log_message(f"🚀 Opening Obsidian with vault: {vault_path}")
+            
+            # Use subprocess to open Obsidian with the vault
+            if sys.platform == "darwin":  # macOS
+                subprocess.run(['open', '-a', 'Obsidian', vault_path], check=True)
+            elif sys.platform == "win32":  # Windows
+                # Try common Windows installation paths
+                obsidian_paths = [
+                    os.path.expandvars(r"%LOCALAPPDATA%\Obsidian\Obsidian.exe"),
+                    os.path.expandvars(r"%APPDATA%\Obsidian\Obsidian.exe"),
+                    r"C:\Program Files\Obsidian\Obsidian.exe"
+                ]
+                
+                obsidian_exe = None
+                for path in obsidian_paths:
+                    if os.path.exists(path):
+                        obsidian_exe = path
+                        break
+                
+                if obsidian_exe:
+                    subprocess.run([obsidian_exe, vault_path], check=True)
+                else:
+                    # Fallback: try to open with default application
+                    os.startfile(vault_path)
+            else:  # Linux
+                try:
+                    subprocess.run(['obsidian', vault_path], check=True)
+                except FileNotFoundError:
+                    # Fallback: open directory in default file manager
+                    subprocess.run(['xdg-open', vault_path], check=True)
+            
+            self.log_message("✅ Obsidian launched successfully!")
+            messagebox.showinfo("Success", "Obsidian has been launched with your vault!")
+            
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to launch Obsidian. Make sure Obsidian is installed.\n\nError: {str(e)}"
+            self.log_message(f"❌ {error_msg}")
+            messagebox.showerror("Launch Failed", error_msg)
+        except Exception as e:
+            error_msg = f"Unexpected error launching Obsidian: {str(e)}"
+            self.log_message(f"❌ {error_msg}")
+            messagebox.showerror("Error", error_msg)
             
     def run_analysis(self):
         """Run the Obsidian analysis in a separate thread"""
@@ -617,56 +705,211 @@ For more information, see the README.md file.
         self.search_term.set("")
         self.search_entry.focus()
         
-    def export_results_dialog(self):
-        """Show export dialog and save results"""
+    def export_results_dialog(self, format_type='markdown'):
+        """Show export dialog and save results in specified format"""
         # Check if there are results to export
         current_results = self.results_text.get(1.0, tk.END).strip()
         if not current_results:
             messagebox.showwarning("No Results", "No results to export. Please run an analysis or search first.")
             return
             
-        # Get default filename based on vault name
+        # Get default filename based on vault name and format
         vault_name = "results"
         if self.vault_path.get():
             vault_name = Path(self.vault_path.get()).name
+        
+        # Set file extension and dialog options based on format
+        if format_type == 'word':
+            if not DOCX_AVAILABLE:
+                messagebox.showerror("Word Export Unavailable", 
+                                   "Word document export requires python-docx.\n\nInstall it with: pip install python-docx")
+                return
+            default_extension = ".docx"
+            file_types = [("Word Documents", "*.docx"), ("All files", "*.*")]
+            title = "Export Results as Word Document"
+        elif format_type == 'html':
+            default_extension = ".html"
+            file_types = [("HTML files", "*.html"), ("All files", "*.*")]
+            title = "Export Results as HTML (Google Docs Ready)"
+        else:  # markdown (default)
+            default_extension = ".md"
+            file_types = [("Markdown files", "*.md"), ("Text files", "*.txt"), ("All files", "*.*")]
+            title = "Export Results as Markdown"
             
-        default_filename = f"obsidian_analysis_{vault_name}_{self.get_timestamp()}.md"
+        default_filename = f"obsidian_analysis_{vault_name}_{self.get_timestamp()}{default_extension}"
         
         # Show save dialog
         file_path = filedialog.asksaveasfilename(
-            title="Export Results",
-            defaultextension=".md",
-            filetypes=[
-                ("Markdown files", "*.md"),
-                ("Text files", "*.txt"),
-                ("All files", "*.*")
-            ],
+            title=title,
+            defaultextension=default_extension,
+            filetypes=file_types,
             initialfile=default_filename
         )
         
         if file_path:
             try:
-                # Create formatted export content
-                export_content = self.format_export_content(current_results)
-                
-                # Write to file
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(export_content)
+                if format_type == 'word':
+                    self.export_to_word(current_results, file_path)
+                elif format_type == 'html':
+                    self.export_to_html(current_results, file_path)
+                else:  # markdown
+                    self.export_to_markdown(current_results, file_path)
                     
                 # Show success message
+                format_name = format_type.title() if format_type != 'html' else 'HTML'
                 messagebox.showinfo(
                     "Export Successful", 
-                    f"Results exported successfully to:\n{file_path}"
+                    f"Results exported successfully as {format_name} to:\n{file_path}"
                 )
                 
-                self.log_message(f"\n📄 Results exported to: {file_path}")
+                self.log_message(f"\n📄 Results exported as {format_name} to: {file_path}")
                 
             except Exception as e:
                 messagebox.showerror("Export Error", f"Failed to export results:\n{str(e)}")
                 self.log_message(f"\n❌ Export failed: {str(e)}")
                 
+    def export_to_markdown(self, results_text, file_path):
+        """Export results to Markdown format"""
+        export_content = self.format_export_content(results_text)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(export_content)
+    
+    def export_to_word(self, results_text, file_path):
+        """Export results to Word document format"""
+        import datetime
+        
+        # Create Word document
+        doc = Document()
+        
+        # Add title
+        title = doc.add_heading('Obsidian Checker Analysis Results', 0)
+        
+        # Add metadata
+        doc.add_paragraph(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        doc.add_paragraph(f"Vault: {self.vault_path.get() or 'Not specified'}")
+        doc.add_paragraph(f"Analysis Type: {'AI-Enhanced' if (self.ai_available.get() and self.use_ai_search.get()) else 'Standard'}")
+        
+        # Add separator
+        doc.add_paragraph("_" * 50)
+        
+        # Process results text and add to document
+        lines = results_text.split('\n')
+        current_paragraph = None
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                if current_paragraph:
+                    current_paragraph = None
+                continue
+                
+            # Check for headers/sections
+            if line.startswith('=') and len(set(line)) == 1:
+                # Skip separator lines
+                continue
+            elif any(line.startswith(prefix) for prefix in ['📊', '🗺️', '🔍', '🤖']):
+                # This looks like a header
+                doc.add_heading(line, level=2)
+                current_paragraph = None
+            elif line.startswith('📄') or line.startswith('   '):
+                # This looks like a sub-item or indented content
+                if not current_paragraph:
+                    current_paragraph = doc.add_paragraph()
+                current_paragraph.add_run(line + '\n')
+            else:
+                # Regular paragraph
+                doc.add_paragraph(line)
+                current_paragraph = None
+        
+        # Add footer
+        doc.add_paragraph("_" * 50)
+        footer = doc.add_paragraph("Generated by Obsidian Checker GUI")
+        footer.italic = True
+        
+        # Save document
+        doc.save(file_path)
+    
+    def export_to_html(self, results_text, file_path):
+        """Export results to HTML format (Google Docs ready)"""
+        import datetime
+        import html
+        
+        # HTML template
+        html_content = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obsidian Checker Analysis Results</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }}
+        h1 {{
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }}
+        h2 {{
+            color: #34495e;
+            margin-top: 30px;
+            border-left: 4px solid #3498db;
+            padding-left: 10px;
+        }}
+        .metadata {{
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }}
+        .results {{
+            background-color: #ffffff;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            white-space: pre-wrap;
+        }}
+        .footer {{
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-style: italic;
+            color: #6c757d;
+        }}
+    </style>
+</head>
+<body>
+    <h1>🔗 Obsidian Checker Analysis Results</h1>
+    
+    <div class="metadata">
+        <p><strong>Generated:</strong> {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <p><strong>Vault:</strong> {html.escape(self.vault_path.get() or 'Not specified')}</p>
+        <p><strong>Analysis Type:</strong> {'AI-Enhanced' if (self.ai_available.get() and self.use_ai_search.get()) else 'Standard'}</p>
+    </div>
+    
+    <h2>Analysis Results</h2>
+    <div class="results">{html.escape(results_text)}</div>
+    
+    <div class="footer">
+        <p>Generated by Obsidian Checker GUI</p>
+        <p>To import into Google Docs: Open Google Docs → File → Import → Upload this HTML file</p>
+    </div>
+</body>
+</html>
+"""
+        
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+    
     def format_export_content(self, results_text):
-        """Format the results for export"""
+        """Format the results for markdown export"""
         import datetime
         
         # Header information
