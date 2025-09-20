@@ -1,0 +1,46 @@
+# Virtual environment
+obsidian_ai_env/
+venv/
+env/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# AI model cache
+.cache/
+models/
+
+# Obsidian vault files (for testing)
+test_vault/
+.obsidian/
+
+# Allow documentation files
+!README.md
+
+# AI cache files
+ai_search_cache.pkl
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Export files from testing
+search_results_*.md
+export_*.md

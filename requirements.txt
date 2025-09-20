@@ -1,0 +1,21 @@
+# Core dependencies for Obsidian Checker
+# These are included with Python standard library
+# - tkinter (GUI)
+# - argparse (CLI)
+# - subprocess (system commands)
+# - pathlib (file operations)
+# - re (regular expressions)
+
+# AI Search Dependencies (Optional)
+# Install with: pip install -r requirements.txt
+sentence-transformers>=2.2.2
+numpy>=1.21.0
+scikit-learn>=1.0.0
+
+# The following are automatically installed with sentence-transformers:
+# torch>=1.11.0
+# transformers>=4.32.0
+# tqdm
+# huggingface-hub>=0.15.1
+# Pillow
+# scipy
