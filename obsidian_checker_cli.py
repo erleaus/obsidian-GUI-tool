@@ -346,6 +346,18 @@ def main():
     parser.add_argument('--build-ai-index', action='store_true', help='Build AI search index')
     parser.add_argument('--similar-to', help='Find files similar to given file path')
     
+    # Conversational AI options
+    parser.add_argument('--chat', action='store_true',
+                       help='Start interactive conversational AI chat about your vault')
+    parser.add_argument('--ask', type=str, metavar='QUESTION',
+                       help='Ask a single question about your vault content')
+    parser.add_argument('--vault-summary', action='store_true',
+                       help='Generate an AI-powered summary of your entire vault')
+    parser.add_argument('--suggest-connections', action='store_true',
+                       help='Get AI suggestions for connections between your notes')
+    parser.add_argument('--stream', action='store_true',
+                       help='Stream responses in real-time (works with --ask)')
+    
     args = parser.parse_args()
     
     print("🔗 Obsidian Backlink Checker & Search Tool")
@@ -432,6 +444,106 @@ def main():
                 print("❌ AI search not available. Install dependencies first.")
         except ImportError:
             print("❌ AI search module not found.")
+    elif args.chat:
+        # Start interactive conversational AI chat
+        try:
+            from obsidian_conversation import ObsidianConversation
+            conversation = ObsidianConversation(vault_path)
+            if conversation.is_available():
+                if not conversation.initialize_search_index():
+                    return
+                print("\n🎉 Conversational AI Ready!")
+                print("\nExample queries:")
+                print("- 'Summarize all notes I have on productivity'")
+                print("- 'What are my thoughts on machine learning?'")
+                print("- 'Show me notes about psychology'")
+                print("\nType 'quit' to exit, 'clear' to clear conversation, 'stats' for statistics")
+                print("=" * 60)
+                
+                while True:
+                    try:
+                        user_input = input("\n💭 Your question: ").strip()
+                        
+                        if not user_input:
+                            continue
+                        
+                        if user_input.lower() in ['quit', 'exit', 'q']:
+                            break
+                        
+                        if user_input.lower() == 'clear':
+                            conversation.clear_conversation()
+                            print("✅ Conversation cleared")
+                            continue
+                        
+                        if user_input.lower() == 'stats':
+                            stats = conversation.get_conversation_stats()
+                            print(f"\n📊 Conversation Stats:")
+                            print(f"   Messages: {stats.get('total_messages', 0)}")
+                            print(f"   Tokens used: {stats.get('total_tokens', 0)}")
+                            print(f"   Model: {stats.get('model', 'Unknown')}")
+                            continue
+                        
+                        if user_input.lower() in ['vault summary', 'summary']:
+                            response = conversation.get_vault_summary()
+                            print(f"\n🤖 Assistant:\n{response}")
+                        elif user_input.lower() in ['connections', 'suggest connections']:
+                            response = conversation.suggest_connections()
+                            print(f"\n🤖 Assistant:\n{response}")
+                        else:
+                            conversation.ask_question(user_input, stream=True)
+                            
+                    except KeyboardInterrupt:
+                        print("\n\n👋 Goodbye!")
+                        break
+                    except Exception as e:
+                        print(f"\n❌ Error: {e}")
+            else:
+                print("❌ Conversational AI not available. Please check your setup.")
+        except ImportError:
+            print("❌ Conversational AI module not found. Make sure obsidian_conversation.py is available.")
+    elif args.ask:
+        # Ask a single question
+        try:
+            from obsidian_conversation import ObsidianConversation
+            conversation = ObsidianConversation(vault_path)
+            if conversation.is_available():
+                if not conversation.initialize_search_index():
+                    return
+                response = conversation.ask_question(args.ask, stream=args.stream)
+                if not args.stream:  # Only print if not streaming (streaming prints inline)
+                    print(f"\n🤖 Assistant:\n{response}")
+            else:
+                print("❌ Conversational AI not available. Please check your setup.")
+        except ImportError:
+            print("❌ Conversational AI module not found.")
+    elif args.vault_summary:
+        # Generate vault summary
+        try:
+            from obsidian_conversation import ObsidianConversation
+            conversation = ObsidianConversation(vault_path)
+            if conversation.is_available():
+                if not conversation.initialize_search_index():
+                    return
+                response = conversation.get_vault_summary()
+                print(f"\n🤖 Vault Summary:\n{response}")
+            else:
+                print("❌ Conversational AI not available. Please check your setup.")
+        except ImportError:
+            print("❌ Conversational AI module not found.")
+    elif args.suggest_connections:
+        # Suggest connections between notes
+        try:
+            from obsidian_conversation import ObsidianConversation
+            conversation = ObsidianConversation(vault_path)
+            if conversation.is_available():
+                if not conversation.initialize_search_index():
+                    return
+                response = conversation.suggest_connections()
+                print(f"\n🤖 Connection Suggestions:\n{response}")
+            else:
+                print("❌ Conversational AI not available. Please check your setup.")
+        except ImportError:
+            print("❌ Conversational AI module not found.")
     elif args.search:
         search_vault(vault_path, args.search, args.case_sensitive, args.whole_word, args.regex, args.export)
     elif args.open_only:

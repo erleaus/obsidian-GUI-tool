@@ -49,3 +49,5 @@ export_*.md
 *.app/
 app_icon.png
 app_icon.icns
+.env
+Obsidian_Checker_v1.0.0.dmg

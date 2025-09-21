@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - /Users/ericaustin:/host_home:ro  # Mount host home for vault access
+    environment:
+      - DEBUG=true
+      - PYTHONPATH=/app
+      - AI_ENABLED=true
+      - OPENAI_ENABLED=false
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/app
+          target: /app/app
+        - action: rebuild
+          path: ./backend/requirements.txt
+
+  # React Frontend  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+        - action: rebuild
+          path: ./frontend/package.json
+
+  # Optional: MongoDB for chat history
+  mongo:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+    profiles:
+      - with-mongo
+
+volumes:
+  mongo_data:

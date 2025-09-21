@@ -1,16 +1,25 @@
-# Core dependencies for Obsidian Checker
-# These are included with Python standard library
-# - tkinter (GUI)
-# - argparse (CLI)
-# - subprocess (system commands)
-# - pathlib (file operations)
-# - re (regular expressions)
+# FastAPI Backend Dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+python-multipart==0.0.6
+python-dotenv==1.0.0
+aiofiles==23.2.1
 
-# AI Search Dependencies (Optional)
-# Install with: pip install -r requirements.txt
+# WebSocket & Real-time Updates
+websockets==12.0
+
+# AI/ML Dependencies (optional - install only if needed)
 sentence-transformers>=2.2.2
 numpy>=1.21.0
 scikit-learn>=1.0.0
+
+# OpenAI Integration (optional)
+openai>=1.0.0
+tiktoken>=0.5.0
+
+# Database (optional for chat history)
+motor>=3.3.2  # MongoDB async driver
 
 # The following are automatically installed with sentence-transformers:
 # torch>=1.11.0
