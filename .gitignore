@@ -51,3 +51,32 @@ app_icon.png
 app_icon.icns
 .env
 Obsidian_Checker_v1.0.0.dmg
+
+# Virtual environments
+obsidian_ai_env/
+venv/
+.venv/
+env/
+
+# Large binary files
+*.dmg
+*.pkg
+*.deb
+*.rpm
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
